@@ -166,8 +166,8 @@ func GetStudnetInfo(area Area, orgCode, name, birth string) (*StudentInfo, error
 	return &data, nil
 }
 
-// AllHealth Send Servey all health
-func (s *StudentInfo) AllHealth() error {
+// AllHealthy Send Servey all healthy
+func (s *StudentInfo) AllHealthy() error {
 	url := fmt.Sprintf("https://%shcs.eduro.go.kr/registerServey", s.AreaURL)
 	reqBody, _ := json.Marshal(map[string]interface{}{
 		"eviceUuid": "",
