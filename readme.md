@@ -7,7 +7,7 @@ go get github.com/gangjun06/auto-selfcheck
 
 ## 사용법
 
-[go Document]()
+[go Document](https://pkg.go.dev/github.com/gangjun06/auto-selfcheck)
 
 ```go
 // 학교 검색하기
