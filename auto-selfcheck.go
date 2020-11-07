@@ -114,10 +114,11 @@ func FindSchool(name string, area Area, level Level) (string, error) {
 	lctnScCode := GetAreaCode(area)
 	schulCrseCode := netUrl.QueryEscape(name)
 	if lctnScCode < 10 {
-		url = fmt.Sprintf("https://hcs.eduro.go.kr/school?lctnScCode=0%d&schulCrseScCode=%d&orgName=%s&currentPageNo=1", lctnScCode, level, schulCrseCode)
+		url = fmt.Sprintf("https://hcs.eduro.go.kr/v2/searchSchool?lctnScCode=0%d&schulCrseScCode=%d&orgName=%s&loginType=school", lctnScCode, level, schulCrseCode)
 	} else {
-		url = fmt.Sprintf("https://hcs.eduro.go.kr/school?lctnScCode=%d&schulCrseScCode=%d&orgName=%s&currentPageNo=1", lctnScCode, level, schulCrseCode)
+		url = fmt.Sprintf("https://hcs.eduro.go.kr/v2/searchSchool?lctnScCode=%d&schulCrseScCode=%d&orgName=%s&loginType=school", lctnScCode, level, schulCrseCode)
 	}
+	fmt.Println(url)
 	resp, _ := http.Get(url)
 	dataByte, _ := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -138,12 +139,14 @@ func FindSchool(name string, area Area, level Level) (string, error) {
 // GetStudentInfo get student info struct
 func GetStudnetInfo(area Area, orgCode, name, birth string) (*StudentInfo, error) {
 	areaURL := GetAreaURL(area)
-	url := fmt.Sprintf("https://%shcs.eduro.go.kr/loginwithschool", areaURL)
+	url := fmt.Sprintf("https://%shcs.eduro.go.kr/v2/findUser", areaURL)
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"name":     Encrypt(name),
-		"birthday": Encrypt(birth),
-		"orgcode":  orgCode,
+		"name":      Encrypt(name),
+		"birthday":  Encrypt(birth),
+		"orgCode":   orgCode,
+		"loginType": "school",
 	})
+
 	reqBodyBuff := bytes.NewBuffer(reqBody)
 
 	resp, err := http.Post(url, "application/json", reqBodyBuff)
@@ -168,23 +171,25 @@ func GetStudnetInfo(area Area, orgCode, name, birth string) (*StudentInfo, error
 func (s *StudentInfo) AllHealthy() error {
 	url := fmt.Sprintf("https://%shcs.eduro.go.kr/registerServey", s.AreaURL)
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"eviceUuid": "",
-		"rspns00":   "Y",
-		"rspns01":   "1",
-		"rspns02":   "1",
-		"rspns03":   nil,
-		"rspns04":   nil,
-		"rspns05":   nil,
-		"rspns06":   nil,
-		"rspns07":   "0",
-		"rspns08":   "0",
-		"rspns09":   "0",
-		"rspns10":   nil,
-		"rspns11":   nil,
-		"rspns12":   nil,
-		"rspns13":   nil,
-		"rspns14":   nil,
-		"rspns15":   nil,
+		"eviceUuid":          "",
+		"rspns00":            "Y",
+		"rspns01":            "1",
+		"rspns02":            "1",
+		"rspns03":            nil,
+		"rspns04":            nil,
+		"rspns05":            nil,
+		"rspns06":            nil,
+		"rspns07":            nil,
+		"rspns08":            nil,
+		"rspns09":            "0",
+		"rspns10":            nil,
+		"rspns11":            nil,
+		"rspns12":            nil,
+		"rspns13":            nil,
+		"rspns14":            nil,
+		"rspns15":            nil,
+		"upperToken":         s.Token,
+		"upperUserNameEncpt": s.Name,
 	})
 
 	reqBodyBuff := bytes.NewBuffer(reqBody)
@@ -209,8 +214,6 @@ func (s *StudentInfo) AllHealthy() error {
 	if err := json.Unmarshal(dataByte, &data); err != nil {
 		return err
 	}
-
-	fmt.Printf("%+v\n", data)
 
 	return nil
 }
