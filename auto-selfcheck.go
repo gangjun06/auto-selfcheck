@@ -1,7 +1,6 @@
 package selfcheck
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -9,10 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	netUrl "net/url"
+
+	"github.com/imroc/req"
 )
 
 var (
@@ -61,7 +60,7 @@ type schulList struct {
 
 type StudentInfo struct {
 	SchoolName string `json:"orgname"`
-	Name       string `json:"name"`
+	Name       string `json:"userName"`
 	Token      string `json:"token"`
 	Birth      string
 	AreaURL    string
@@ -118,16 +117,11 @@ func FindSchool(name string, area Area, level Level) (string, error) {
 	} else {
 		url = fmt.Sprintf("https://hcs.eduro.go.kr/v2/searchSchool?lctnScCode=%d&schulCrseScCode=%d&orgName=%s&loginType=school", lctnScCode, level, schulCrseCode)
 	}
-	fmt.Println(url)
-	resp, _ := http.Get(url)
-	dataByte, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
+
+	r, _ := req.Get(url)
 
 	var data schoolFind
-	err := json.Unmarshal(dataByte, &data)
-	if err != nil {
-		return "", err
-	}
+	r.ToJSON(&data)
 
 	if len(data.SchulList) < 1 {
 		return "", ErrInfoNotFound
@@ -140,30 +134,55 @@ func FindSchool(name string, area Area, level Level) (string, error) {
 func GetStudnetInfo(area Area, orgCode, name, birth string) (*StudentInfo, error) {
 	areaURL := GetAreaURL(area)
 	url := fmt.Sprintf("https://%shcs.eduro.go.kr/v2/findUser", areaURL)
-	reqBody, _ := json.Marshal(map[string]interface{}{
+	reqBody := map[string]interface{}{
 		"name":      Encrypt(name),
 		"birthday":  Encrypt(birth),
 		"orgCode":   orgCode,
 		"loginType": "school",
-	})
-
-	reqBodyBuff := bytes.NewBuffer(reqBody)
-
-	resp, err := http.Post(url, "application/json", reqBodyBuff)
-	if err != nil {
-		return nil, err
 	}
 
-	dataByte, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
+	r, _ := req.Post(url, req.BodyJSON(reqBody))
 
 	var data StudentInfo
-	if err := json.Unmarshal(dataByte, &data); err != nil {
+	if err := r.ToJSON(&data); err != nil {
 		return nil, ErrInfoNotFound
 	}
 
+	url2 := fmt.Sprintf("https://%shcs.eduro.go.kr/v2/selectUserGroup", areaURL)
+	header2 := req.Header{
+		"Authorization": data.Token,
+	}
+
+	r2, _ := req.Post(url2, header2)
+
+	var data2 []map[string]interface{}
+	if err := r2.ToJSON(&data2); err != nil {
+		return nil, err
+	}
+
+	userPNo := data2[0]["userPNo"].(string)
+	token2 := data2[0]["token"].(string)
+
+	url3 := fmt.Sprintf("https://%shcs.eduro.go.kr/v2/getUserInfo", areaURL)
+	header3 := req.Header{
+		"Authorization": token2,
+	}
+	reqBody3 := map[string]interface{}{
+		"orgCode": orgCode,
+		"userPNo": userPNo,
+	}
+
+	r3, _ := req.Post(url3, header3, req.BodyJSON(reqBody3))
+
+	var data3 map[string]interface{}
+	if err := r3.ToJSON(&data3); err != nil {
+		return nil, err
+	}
+
+	data.Token = data3["token"].(string)
 	data.AreaURL = areaURL
 	data.Birth = birth
+
 	return &data, nil
 }
 
@@ -171,7 +190,7 @@ func GetStudnetInfo(area Area, orgCode, name, birth string) (*StudentInfo, error
 func (s *StudentInfo) AllHealthy() error {
 	url := fmt.Sprintf("https://%shcs.eduro.go.kr/registerServey", s.AreaURL)
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"eviceUuid":          "",
+		"deviceUuid":         "",
 		"rspns00":            "Y",
 		"rspns01":            "1",
 		"rspns02":            "1",
@@ -192,28 +211,19 @@ func (s *StudentInfo) AllHealthy() error {
 		"upperUserNameEncpt": s.Name,
 	})
 
-	reqBodyBuff := bytes.NewBuffer(reqBody)
-	req, err := http.NewRequest("POST", url, reqBodyBuff)
-	if err != nil {
-		return err
+	reqHeader := req.Header{
+		"Authorization": s.Token,
+		"Content-Type":  "application/json",
 	}
 
-	req.Header.Add("Authorization", s.Token)
-	req.Header.Add("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	dataByte, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
+	r, _ := req.Post(url, reqHeader, req.BodyJSON(reqBody))
 
 	var data map[string]interface{}
-	if err := json.Unmarshal(dataByte, &data); err != nil {
+	if err := r.ToJSON(&data); err != nil {
 		return err
 	}
+
+	fmt.Printf("%+v\n", data)
 
 	return nil
 }
