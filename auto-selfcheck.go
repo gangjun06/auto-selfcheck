@@ -216,14 +216,14 @@ func (s *StudentInfo) AllHealthy() error {
 		"Content-Type":  "application/json",
 	}
 
-	r, _ := req.Post(url, reqHeader, req.BodyJSON(reqBody))
-
-	var data map[string]interface{}
-	if err := r.ToJSON(&data); err != nil {
+	r, err := req.Post(url, reqHeader, req.BodyJSON(reqBody))
+	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%+v\n", data)
+	if r.Response().StatusCode != 200 {
+		return errors.New("error request")
+	}
 
 	return nil
 }
